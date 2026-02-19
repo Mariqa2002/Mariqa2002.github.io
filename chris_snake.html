@@ -1,0 +1,298 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Christopher's A Snake 🐍</title>
+    <style>
+      body {
+        margin: 0;
+        background: black;
+        color: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+      }
+      canvas {
+        background: #111;
+        display: block;
+        margin: 10px auto;
+        border: 2px solid white;
+      }
+      #topbar {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 10px;
+        font-size: 18px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin-top: 10px;
+        cursor: pointer;
+      }
+      #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.95);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      input {
+        padding: 8px;
+        font-size: 16px;
+        margin-top: 10px;
+      }
+      #gift {
+        display: none;
+        font-size: 28px;
+        margin-top: 20px;
+        color: gold;
+      }
+
+      #score {
+        margin-top: 10px;
+        font-size: 20px;
+      }
+
+      #instructions {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #aaa;
+      }
+
+      #answerInput {
+        padding: 8px;
+        border: 2px solid white;
+        background: black;
+        color: white;
+      }
+      #score {
+        margin-top: 10px;
+        font-size: 20px;
+      }
+
+      #instructions {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #aaa;
+      }
+
+      #answerInput {
+        padding: 8px;
+        border: 2px solid white;
+        background: black;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🐍 Chris' Snake Leaving Challenge🍎</h1>
+
+    <div id="topbar">
+      <div>Score: <span id="score">0</span></div>
+      <div>Eat apples → Answer correctly → Unlock gift</div>
+    </div>
+
+    <canvas id="game" width="400" height="400"></canvas>
+
+    <div id="overlay">
+      <h2>Press Start to Begin</h2>
+      <p>
+        Use Arrow Keys to move.<br />
+        Wrap around edges. Avoid yourself.<br />
+        10 correct answers unlock the gift.
+      </p>
+      <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <audio id="eatSound" src="eat.wav"></audio>
+    <audio id="wrongSound" src="wrong.wav"></audio>
+    <audio id="gameOverSound" src="gameover.wav"></audio>
+    <audio id="bgMusic" src="bgmusic.mp3" loop></audio>
+
+    <div id="questionBox" style="display: none">
+      <h3 id="questionText"></h3>
+      <input id="answerInput" placeholder="Type answer here" />
+      <button onclick="submitAnswer()">Submit</button>
+    </div>
+
+    <div id="gift">
+      🎉 GIFT UNLOCKED 🎉<br /><br />
+      Gift Card Message: <strong>Message Me, left out code fot safety!!</strong
+      ><br /><br />
+      Thank you for being an incredible mentor 🐍✨
+    </div>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const box = 20;
+      const gridCount = 20;
+
+      let snake, direction, apple, game, correctAnswers;
+      let speed = 180;
+      let gameRunning = false;
+      let currentQuestion = null;
+      let remainingQuestions = [];
+      let score = 0;
+
+      const eatSound = document.getElementById("eatSound");
+      const wrongSound = document.getElementById("wrongSound");
+      const gameOverSound = document.getElementById("gameOverSound");
+      const bgMusic = document.getElementById("bgMusic");
+
+      fetch("questions.json")
+        .then((res) => res.json())
+        .then((data) => (questions = data));
+
+      function startGame() {
+        document.getElementById("overlay").style.display = "none";
+        resetGame();
+        bgMusic.play();
+        gameRunning = true;
+        game = setInterval(draw, speed);
+      }
+
+      function resetGame() {
+        snake = [{ x: 10, y: 10 }];
+        direction = "RIGHT";
+        apple = spawnApple();
+        correctAnswers = 0;
+        score = 0;
+        remainingQuestions = [...questions];
+        updateScore();
+        document.getElementById("gift").style.display = "none";
+      }
+
+      function spawnApple() {
+        return {
+          x: Math.floor(Math.random() * gridCount),
+          y: Math.floor(Math.random() * gridCount),
+        };
+      }
+
+      function updateScore() {
+        document.getElementById("score").innerText = score;
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (!gameRunning) return;
+        if (event.key === "ArrowLeft" && direction !== "RIGHT")
+          direction = "LEFT";
+        if (event.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
+        if (event.key === "ArrowRight" && direction !== "LEFT")
+          direction = "RIGHT";
+        if (event.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+      });
+
+      function draw() {
+        ctx.fillStyle = "#111";
+        ctx.fillRect(0, 0, 400, 400);
+
+        let head = { ...snake[0] };
+
+        if (direction === "LEFT") head.x--;
+        if (direction === "UP") head.y--;
+        if (direction === "RIGHT") head.x++;
+        if (direction === "DOWN") head.y++;
+
+        // Wrap
+        if (head.x < 0) head.x = gridCount - 1;
+        if (head.x >= gridCount) head.x = 0;
+        if (head.y < 0) head.y = gridCount - 1;
+        if (head.y >= gridCount) head.y = 0;
+
+        // Self collision
+        if (
+          snake.some((segment) => segment.x === head.x && segment.y === head.y)
+        ) {
+          gameOver();
+          return;
+        }
+
+        snake.unshift(head);
+
+        if (head.x === apple.x && head.y === apple.y) {
+          eatSound.play();
+          pauseForQuestion();
+          apple = spawnApple();
+        } else {
+          snake.pop(); // smooth growth happens naturally
+        }
+
+        // Draw snake
+        snake.forEach((segment, index) => {
+          ctx.fillStyle = index === 0 ? "lime" : "green";
+          ctx.fillRect(segment.x * box, segment.y * box, box, box);
+        });
+
+        ctx.fillStyle = "red";
+        ctx.fillRect(apple.x * box, apple.y * box, box, box);
+
+        if (correctAnswers >= 10) {
+          clearInterval(game);
+          document.getElementById("gift").style.display = "block";
+          gameRunning = false;
+        }
+      }
+
+      function pauseForQuestion() {
+        clearInterval(game);
+        gameRunning = false;
+        if (remainingQuestions.length === 0) return;
+
+        currentQuestion =
+          remainingQuestions[
+            Math.floor(Math.random() * remainingQuestions.length)
+          ];
+        document.getElementById("questionText").innerText = currentQuestion.q;
+        document.getElementById("questionBox").style.display = "block";
+      }
+
+      function submitAnswer() {
+        const input = document.getElementById("answerInput");
+        const answer = input.value.toLowerCase().trim();
+
+        if (answer === currentQuestion.a) {
+          input.style.borderColor = "lime";
+          eatSound.play();
+          correctAnswers++;
+          score += 10;
+          updateScore();
+          remainingQuestions = remainingQuestions.filter(
+            (q) => q !== currentQuestion,
+          );
+
+          snake.push({ ...snake[snake.length - 1] });
+        } else {
+          input.style.borderColor = "red";
+          wrongSound.play();
+        }
+
+        setTimeout(() => {
+          input.style.borderColor = "white";
+          input.value = "";
+          document.getElementById("questionBox").style.display = "none";
+          gameRunning = true;
+          game = setInterval(draw, speed);
+        }, 1000);
+      }
+
+      function gameOver() {
+        clearInterval(game);
+        bgMusic.pause();
+        gameOverSound.play();
+        gameRunning = false;
+
+        document.getElementById("overlay").innerHTML = `
+        <h2>Game Over 🐍</h2>
+        <button onclick="startGame()">Restart</button>
+    `;
+        document.getElementById("overlay").style.display = "flex";
+      }
+    </script>
+  </body>
+</html>
